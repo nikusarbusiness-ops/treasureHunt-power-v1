@@ -1,10 +1,9 @@
 
-name: TreasureHunt - ZIP Builder
+name: TreasureHunt - Source ZIP
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -12,102 +11,67 @@ permissions:
 
 jobs:
   package:
-    name: Validate and Package TreasureHunt
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-
-      - name: Find Maven Project
-        id: project
+      - name: Check Java Source Files
         shell: bash
         run: |
-          POM=$(find . -type f -name pom.xml \
-            -not -path './.git/*' \
-            -not -path '*/target/*' \
-            -print -quit)
+          echo "Suche Java-Dateien..."
 
-          if [ -z "$POM" ]; then
-            echo "::error::Keine pom.xml im Repository gefunden!"
-            echo "Repository-Dateien:"
-            find . -maxdepth 4 -type f | head -100
+          find . -type f -name "*.java" \
+            -not -path "./.git/*" \
+            -not -path "*/target/*"
+
+          if ! find . -type f -name "*.java" \
+            -not -path "./.git/*" \
+            -not -path "*/target/*" | grep -q .; then
+            echo "::error::Keine Java-Dateien gefunden!"
             exit 1
           fi
 
-          echo "Gefunden: $POM"
-          echo "pom=$POM" >> "$GITHUB_OUTPUT"
-
-      - name: Validate Maven Project
+      - name: Prepare Project
         run: |
-          mvn -B -ntp -f "${{ steps.project.outputs.pom }}" validate
+          mkdir -p output/TreasureHunt
 
-      - name: Prepare Complete Source Project
-        shell: bash
-        run: |
-          mkdir -p "$RUNNER_TEMP/staging/TreasureHunt"
-
-          rsync -a "$GITHUB_WORKSPACE/" \
-            "$RUNNER_TEMP/staging/TreasureHunt/" \
+          rsync -a ./ output/TreasureHunt/ \
             --exclude='.git/' \
-            --exclude='*/.git/' \
             --exclude='target/' \
-            --exclude='*/target/' \
-            --exclude='dist/' \
-            --exclude='*/dist/' \
+            --exclude='output/' \
             --exclude='*.jar' \
-            --exclude='*.class' \
-            --exclude='.idea/' \
-            --exclude='.vscode/'
+            --exclude='*.class'
 
-      - name: Verify ZIP Contents
-        shell: bash
+      - name: Verify Java Files in Package
         run: |
-          PROJECT="$RUNNER_TEMP/staging/TreasureHunt"
+          find output/TreasureHunt -name "*.java"
 
-          test -f "$PROJECT/${{ steps.project.outputs.pom }}" || \
-            test -f "$PROJECT/pom.xml"
+          COUNT=$(find output/TreasureHunt -name "*.java" | wc -l)
 
-          echo "Projektdateien:"
-          find "$PROJECT" -type f | sort
-
-          if find "$PROJECT" -type f \
-            \( -name '*.jar' -o -name '*.class' \) | grep -q .; then
-            echo "::error::Kompilierte Dateien gefunden!"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "::error::Java-Dateien fehlen in der ZIP!"
             exit 1
           fi
 
-          echo "ZIP-Inhalt erfolgreich geprüft."
+          echo "$COUNT Java-Dateien gefunden."
 
-      - name: Create Final ZIP
+      - name: Create ZIP
         run: |
-          cd "$RUNNER_TEMP/staging"
+          cd output
+          zip -qr ../TreasureHunt-Source.zip TreasureHunt
 
-          zip -qr \
-            "$RUNNER_TEMP/TreasureHunt-Source.zip" \
-            TreasureHunt
-
-      - name: Verify Final ZIP
+      - name: Verify ZIP
         run: |
-          ZIP="$RUNNER_TEMP/TreasureHunt-Source.zip"
+          unzip -l TreasureHunt-Source.zip
 
-          test -s "$ZIP"
-          unzip -t "$ZIP"
+          unzip -Z1 TreasureHunt-Source.zip | grep -E '\.java$'
 
-          echo "ZIP erfolgreich erstellt:"
-          ls -lh "$ZIP"
-
-      - name: Upload Final ZIP
+      - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
           name: TreasureHunt-Source
-          path: ${{ runner.temp }}/TreasureHunt-Source.zip
+          path: TreasureHunt-Source.zip
           if-no-files-found: error
           retention-days: 30
