@@ -1,5 +1,5 @@
 
-name: TreasureHunt - Build ZIP
+name: TreasureHunt - ZIP Builder
 
 on:
   push:
@@ -11,11 +11,12 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  package:
+    name: Validate and Package TreasureHunt
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download Repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Java 21
@@ -25,39 +26,88 @@ jobs:
           java-version: '21'
           cache: maven
 
-      - name: Check Project Structure
+      - name: Find Maven Project
+        id: project
+        shell: bash
         run: |
-          test -f pom.xml
-          test -d src/main/java
-          test -f src/main/resources/plugin.yml
-          test -f src/main/resources/config.yml
-          test -f src/main/resources/messages.yml
-          test -f README.md
+          POM=$(find . -type f -name pom.xml \
+            -not -path './.git/*' \
+            -not -path '*/target/*' \
+            -print -quit)
 
-      - name: Maven Test
-        run: mvn -B -ntp test
+          if [ -z "$POM" ]; then
+            echo "::error::Keine pom.xml im Repository gefunden!"
+            echo "Repository-Dateien:"
+            find . -maxdepth 4 -type f | head -100
+            exit 1
+          fi
 
-      - name: Prepare ZIP
+          echo "Gefunden: $POM"
+          echo "pom=$POM" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Maven Project
         run: |
-          mkdir -p dist/staging/TreasureHunt
+          mvn -B -ntp -f "${{ steps.project.outputs.pom }}" validate
 
-          rsync -a ./ dist/staging/TreasureHunt/ \
+      - name: Prepare Complete Source Project
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/staging/TreasureHunt"
+
+          rsync -a "$GITHUB_WORKSPACE/" \
+            "$RUNNER_TEMP/staging/TreasureHunt/" \
             --exclude='.git/' \
+            --exclude='*/.git/' \
             --exclude='target/' \
+            --exclude='*/target/' \
             --exclude='dist/' \
+            --exclude='*/dist/' \
             --exclude='*.jar' \
+            --exclude='*.class' \
             --exclude='.idea/' \
             --exclude='.vscode/'
 
-      - name: Create Source ZIP
+      - name: Verify ZIP Contents
+        shell: bash
         run: |
-          cd dist/staging
-          zip -qr ../TreasureHunt-Source.zip TreasureHunt
+          PROJECT="$RUNNER_TEMP/staging/TreasureHunt"
 
-      - name: Upload ZIP Artifact
+          test -f "$PROJECT/${{ steps.project.outputs.pom }}" || \
+            test -f "$PROJECT/pom.xml"
+
+          echo "Projektdateien:"
+          find "$PROJECT" -type f | sort
+
+          if find "$PROJECT" -type f \
+            \( -name '*.jar' -o -name '*.class' \) | grep -q .; then
+            echo "::error::Kompilierte Dateien gefunden!"
+            exit 1
+          fi
+
+          echo "ZIP-Inhalt erfolgreich geprüft."
+
+      - name: Create Final ZIP
+        run: |
+          cd "$RUNNER_TEMP/staging"
+
+          zip -qr \
+            "$RUNNER_TEMP/TreasureHunt-Source.zip" \
+            TreasureHunt
+
+      - name: Verify Final ZIP
+        run: |
+          ZIP="$RUNNER_TEMP/TreasureHunt-Source.zip"
+
+          test -s "$ZIP"
+          unzip -t "$ZIP"
+
+          echo "ZIP erfolgreich erstellt:"
+          ls -lh "$ZIP"
+
+      - name: Upload Final ZIP
         uses: actions/upload-artifact@v4
         with:
           name: TreasureHunt-Source
-          path: dist/TreasureHunt-Source.zip
+          path: ${{ runner.temp }}/TreasureHunt-Source.zip
           if-no-files-found: error
           retention-days: 30
