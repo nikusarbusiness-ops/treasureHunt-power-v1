@@ -25,85 +25,80 @@ jobs:
           java-version: '21'
           cache: maven
 
-      # Projektdateien in die Maven-Ordnerstruktur kopieren
-      - name: Prepare Maven project structure
+      - name: Check project files
+        run: |
+          set -e
+          test -f pom.xml
+          test -f TreasureHuntPlugin.java
+          test -f plugin.yml
+
+      - name: Fix Java compatibility issues
         shell: bash
         run: |
           set -e
+          python3 - <<'PY'
+          from pathlib import Path
 
-          if [ ! -f pom.xml ]; then
-            echo "FEHLER: pom.xml fehlt im Hauptverzeichnis!"
-            exit 1
-          fi
+          file = Path("TreasureHuntPlugin.java")
+          source = file.read_text(encoding="utf-8")
 
-          if [ ! -f TreasureHuntPlugin.java ]; then
-            echo "FEHLER: TreasureHuntPlugin.java fehlt!"
-            exit 1
-          fi
+          old_actionbar = 'p.sendActionBar(color("&6"+subtitle));'
+          new_actionbar = (
+              'p.spigot().sendMessage('
+              'net.md_5.bungee.api.ChatMessageType.ACTION_BAR, '
+              'net.md_5.bungee.api.chat.TextComponent.fromLegacyText('
+              'color("&6"+subtitle)));'
+          )
 
-          if [ ! -f plugin.yml ]; then
-            echo "FEHLER: plugin.yml fehlt!"
-            exit 1
-          fi
+          if old_actionbar not in source:
+              raise SystemExit("Fehler: Actionbar-Stelle nicht gefunden.")
 
+          source = source.replace(old_actionbar, new_actionbar)
+          source = source.replace("new Date(", "new java.util.Date(")
+
+          file.write_text(source, encoding="utf-8")
+          print("Java-Kompatibilitätskorrekturen angewendet.")
+          PY
+
+      - name: Prepare Maven project
+        shell: bash
+        run: |
+          set -e
+          rm -rf src/main
           mkdir -p src/main/java/de/powersmp/treasurehunt
           mkdir -p src/main/resources
 
           cp TreasureHuntPlugin.java \
-            src/main/java/de/powersmp/treasurehunt/TreasureHuntPlugin.java
+            src/main/java/de/powersmp/treasurehunt/
 
-          cp plugin.yml src/main/resources/plugin.yml
+          cp plugin.yml src/main/resources/
+          [ ! -f config.yml ] || cp config.yml src/main/resources/
+          [ ! -f messages.yml ] || cp messages.yml src/main/resources/
 
-          if [ -f config.yml ]; then
-            cp config.yml src/main/resources/config.yml
-          fi
-
-          if [ -f messages.yml ]; then
-            cp messages.yml src/main/resources/messages.yml
-          fi
-
-          echo "Maven-Projektstruktur erfolgreich vorbereitet."
-          find src/main -type f
-
-      # Maven kompilieren
       - name: Build with Maven
         run: mvn --batch-mode --no-transfer-progress clean package
 
-      # JAR überprüfen
-      - name: Verify compiled plugin
+      - name: Verify plugin JAR
         shell: bash
         run: |
           set -e
-
           JAR="target/TreasureHunt-1.0.0.jar"
 
-          if [ ! -f "$JAR" ]; then
-            echo "FEHLER: Plugin-JAR wurde nicht erstellt!"
-            ls -lah target || true
-            exit 1
-          fi
+          test -f "$JAR"
+          jar tf "$JAR" | grep -q "plugin.yml"
+          jar tf "$JAR" | grep -q \
+            "de/powersmp/treasurehunt/TreasureHuntPlugin.class"
 
-          if ! jar tf "$JAR" | grep -q "plugin.yml"; then
-            echo "FEHLER: plugin.yml fehlt in der JAR!"
-            exit 1
-          fi
+          echo "Plugin erfolgreich kompiliert und überprüft."
 
-          if ! jar tf "$JAR" | grep -q "de/powersmp/treasurehunt/TreasureHuntPlugin.class"; then
-            echo "FEHLER: Hauptklasse fehlt in der JAR!"
-            exit 1
-          fi
-
-          echo "Plugin-JAR erfolgreich überprüft!"
-
-      # Release-Dateien erstellen
-      - name: Prepare release files
+      - name: Create ZIP files
         shell: bash
         run: |
           set -e
-
           mkdir -p dist
 
-          cp target/TreasureHunt-1.0.0.jar dist/TreasureHunt.jar
+          cp target/TreasureHunt-1.0.0.jar \
+            dist/TreasureHunt.jar
 
           zip -r dist/TreasureHunt-Source.zip . \
             -x "./.git/*" \
@@ -111,10 +106,9 @@ jobs:
                "./dist/*"
 
           echo "Erstellte Dateien:"
-          ls -lah dist
+          ls -lh dist/
 
-      # Dateien zum Download bereitstellen
-      - name: Upload build artifacts
+      - name: Upload build files
         uses: actions/upload-artifact@v4
         with:
           name: TreasureHunt-Release
