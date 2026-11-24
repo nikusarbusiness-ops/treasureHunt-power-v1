@@ -1,0 +1,24 @@
+name: TreasureHunt
+version: 1.0.0
+main: de.powersmp.treasurehunt.TreasureHuntPlugin
+api-version: '1.21'
+author: PowerSMP
+commands:
+  treasurehunt:
+    description: Admin-Verwaltung für TreasureHunt
+    usage: /treasurehunt <start|stop|reload|status|stats|hour>
+  treasure:
+    description: TreasureHunt-Menü und Statistiken
+    usage: /treasure [stats|rewards]
+  powerticket:
+    description: Power-Ticket-Menü
+    usage: /powerticket
+permissions:
+  treasurehunt.admin: {default: op}
+  treasurehunt.start: {default: op}
+  treasurehunt.stop: {default: op}
+  treasurehunt.hour: {default: op}
+  treasurehunt.reload: {default: op}
+  treasurehunt.stats: {default: op}
+  treasurehunt.use: {default: true}
+  powerticket.use: {default: true}

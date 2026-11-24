@@ -1,0 +1,7 @@
+prefix: "&8[&6TreasureHunt&8] &r"
+started: "&6✦ TREASURE HUNT wurde gestartet! Baue Erze ab und finde legendäre Schätze!"
+stopped: "&6✦ TREASURE HUNT wurde beendet! Danke fürs Mitmachen!"
+hour-start: "&6✦ TREASURE HOUR x%multiplier% wurde aktiviert! Deine Fundchancen sind jetzt vervielfacht!"
+hour-end: "&e✦ TREASURE HOUR ist vorbei! Die normalen Fundchancen sind wieder aktiv."
+not-active: "&cTreasureHunt ist derzeit nicht aktiv."
+no-permission: "&cDafür hast du keine Berechtigung."

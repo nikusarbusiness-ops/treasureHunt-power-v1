@@ -1,0 +1,71 @@
+event:
+  enabled-on-startup: false
+  prevent-placed-ore-farming: true
+  bossbar:
+    normal: "✦ TREASURE HUNT ✦ | Baue Erze ab und finde legendäre Schätze!"
+    hour: "✦ TREASURE HOUR x%multiplier% ✦ | Noch %time%"
+    color: YELLOW
+    style: SOLID
+  ores:
+    - COAL_ORE
+    - DEEPSLATE_COAL_ORE
+    - IRON_ORE
+    - DEEPSLATE_IRON_ORE
+    - GOLD_ORE
+    - DEEPSLATE_GOLD_ORE
+    - DIAMOND_ORE
+    - DEEPSLATE_DIAMOND_ORE
+    - EMERALD_ORE
+    - DEEPSLATE_EMERALD_ORE
+    - REDSTONE_ORE
+    - DEEPSLATE_REDSTONE_ORE
+    - LAPIS_ORE
+    - DEEPSLATE_LAPIS_ORE
+    - COPPER_ORE
+    - DEEPSLATE_COPPER_ORE
+    - NETHER_GOLD_ORE
+    - NETHER_QUARTZ_ORE
+    - ANCIENT_DEBRIS
+chances:
+  money: 1000
+  powertool: 40000
+  spawner: 100000
+  ticket: 150000
+money: {min: 1000, max: 50000, command: "powereco give %player% %amount%"}
+powertools:
+  command: "powertools give %player% %tool%"
+  items: [HAMMER, PICKAXE, AXE, SHOVEL]
+spawners:
+  command: "spawner give %player% %type% 1"
+  types: [skeleton, zombie, spider, creeper]
+ticket:
+  material: NETHER_STAR
+  name: "&6&lPOWER TICKET"
+  lore: ["&7Einlösen für 30 Tage Power-Rang", "&eRechtsklick oder GUI zum Einlösen"]
+  rank-group: power
+  rank-command: "lp user %player% parent addtemp %group% 30d"
+  daily-days: 30
+  daily-rewards:
+    '1': ["crate key give %player% normal 3"]
+    '2': ["powertools give %player% HAMMER"]
+    '3': ["crate key give %player% normal 5"]
+    '4': ["powertools give %player% PICKAXE"]
+    '5': ["powereco give %player% 5000"]
+    '7': ["crate key give %player% normal 10"]
+    '10': ["powereco give %player% 10000"]
+    '14': ["powertools give %player% HAMMER"]
+    '20': ["powereco give %player% 25000"]
+    '30': ["crate key give %player% normal 25"]
+  daily-default: []
+hour:
+  max-duration-seconds: 86400
+animations:
+  money: {sound: ENTITY_EXPERIENCE_ORB_PICKUP, particles: HAPPY_VILLAGER}
+  powertool: {sound: ENTITY_PLAYER_LEVELUP, particles: ENCHANT}
+  spawner: {sound: UI_TOAST_CHALLENGE_COMPLETE, particles: TOTEM_OF_UNDYING}
+  ticket: {sound: UI_TOAST_CHALLENGE_COMPLETE, particles: FIREWORK}
+gui:
+  title: "&8✦ &6TreasureHunt"
+  ticket-title: "&8✦ &6Power Ticket"
+  size: 27
+  ticket-size: 27
