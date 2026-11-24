@@ -1,77 +1,121 @@
 
-name: TreasureHunt - Source ZIP
+name: TreasureHunt - Build and Package
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  package:
+  build:
+    name: Compile JAR and Create Source ZIP
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Check Java Source Files
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Find Maven Project
+        id: project
         shell: bash
         run: |
-          echo "Suche Java-Dateien..."
+          POM=$(find . -type f -name pom.xml \
+            -not -path './.git/*' \
+            -not -path '*/target/*' \
+            -print -quit)
 
-          find . -type f -name "*.java" \
-            -not -path "./.git/*" \
-            -not -path "*/target/*"
-
-          if ! find . -type f -name "*.java" \
-            -not -path "./.git/*" \
-            -not -path "*/target/*" | grep -q .; then
-            echo "::error::Keine Java-Dateien gefunden!"
+          if [ -z "$POM" ]; then
+            echo "::error::pom.xml wurde nicht gefunden!"
             exit 1
           fi
 
-      - name: Prepare Project
-        run: |
-          mkdir -p output/TreasureHunt
+          PROJECT_DIR=$(dirname "$POM")
 
-          rsync -a ./ output/TreasureHunt/ \
+          echo "pom=$POM" >> "$GITHUB_OUTPUT"
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+
+          echo "Maven-Projekt: $PROJECT_DIR"
+
+      - name: Compile Plugin with Maven
+        run: |
+          mvn -B -ntp -f "${{ steps.project.outputs.pom }}" clean package
+
+      - name: Verify Compiled JAR
+        shell: bash
+        run: |
+          TARGET="${{ steps.project.outputs.dir }}/target"
+
+          mkdir -p dist
+
+          mapfile -t JARS < <(
+            find "$TARGET" -maxdepth 1 -type f -name '*.jar' \
+              ! -name '*-sources.jar' \
+              ! -name '*-javadoc.jar'
+          )
+
+          if [ "${#JARS[@]}" -ne 1 ]; then
+            echo "::error::Es wurde nicht genau eine Plugin-JAR gefunden!"
+            ls -la "$TARGET"
+            exit 1
+          fi
+
+          cp "${JARS[0]}" dist/TreasureHunt.jar
+
+          echo "Plugin-JAR erfolgreich erstellt:"
+          ls -lh dist/TreasureHunt.jar
+
+      - name: Prepare Source Project
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/source/TreasureHunt"
+
+          rsync -a \
+            "${{ steps.project.outputs.dir }}/" \
+            "$RUNNER_TEMP/source/TreasureHunt/" \
             --exclude='.git/' \
             --exclude='target/' \
-            --exclude='output/' \
+            --exclude='dist/' \
             --exclude='*.jar' \
-            --exclude='*.class'
+            --exclude='*.class' \
+            --exclude='.idea/' \
+            --exclude='.vscode/'
 
-      - name: Verify Java Files in Package
+      - name: Create Source ZIP
         run: |
-          find output/TreasureHunt -name "*.java"
+          cd "$RUNNER_TEMP/source"
+          zip -qr "$GITHUB_WORKSPACE/dist/TreasureHunt-Source.zip" TreasureHunt
 
-          COUNT=$(find output/TreasureHunt -name "*.java" | wc -l)
-
-          if [ "$COUNT" -eq 0 ]; then
-            echo "::error::Java-Dateien fehlen in der ZIP!"
-            exit 1
-          fi
-
-          echo "$COUNT Java-Dateien gefunden."
-
-      - name: Create ZIP
+      - name: Verify Final Files
+        shell: bash
         run: |
-          cd output
-          zip -qr ../TreasureHunt-Source.zip TreasureHunt
+          test -s dist/TreasureHunt.jar
+          test -s dist/TreasureHunt-Source.zip
 
-      - name: Verify ZIP
-        run: |
-          unzip -l TreasureHunt-Source.zip
+          unzip -t dist/TreasureHunt-Source.zip
 
-          unzip -Z1 TreasureHunt-Source.zip | grep -E '\.java$'
+          echo "FERTIGE DATEIEN:"
+          ls -lh dist/
 
-      - name: Upload ZIP
+          echo "Java-Dateien in Source ZIP:"
+          unzip -Z1 dist/TreasureHunt-Source.zip | grep '\.java$'
+
+      - name: Upload Final Downloads
         uses: actions/upload-artifact@v4
         with:
-          name: TreasureHunt-Source
-          path: TreasureHunt-Source.zip
+          name: TreasureHunt-Final
+          path: |
+            dist/TreasureHunt.jar
+            dist/TreasureHunt-Source.zip
           if-no-files-found: error
           retention-days: 30
